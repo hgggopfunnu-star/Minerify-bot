@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require('discord.js');
+const { setupLinking } = require("./linking");
 
 const client = new Client({
   intents: [
@@ -9,10 +10,15 @@ const client = new Client({
   ]
 });
 
+// ================= READY =================
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
 
+// ================= LOAD LINKING SYSTEM =================
+setupLinking(client);
+
+// ================= MAIN MESSAGE HANDLER =================
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -23,81 +29,100 @@ client.on('messageCreate', async message => {
     ch => ch.name === "punishment-logs"
   );
 
-  // STAFF CHECK
-  if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
-    return;
+  // ================= SERVER IP AUTO RESPONSE =================
+  const ipTriggers = ["ip", "server ip", "what is the ip", "mc ip"];
+
+  if (ipTriggers.includes(message.content.toLowerCase())) {
+    const embed = new EmbedBuilder()
+      .setTitle("🌍 Minerift Network")
+      .setColor("Purple")
+      .setDescription("🎮 **Server IP:** `minerift.duckdns.org:25568`\n⚔️ Lifesteal SMP | Join the fight.")
+      .setFooter({ text: "Minerift • Dominate the SMP 👑" })
+      .setTimestamp();
+
+    return message.reply({ embeds: [embed] });
   }
 
-  // WARN
+  // ================= WARN =================
   if (command === "!warn") {
-    const user = message.mentions.members.first();
-    if (!user) return message.reply("Mention a user to warn.");
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
+      return message.reply("You don't have permission to warn.");
+
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("Mention a user to warn.");
 
     const reason = args.join(" ") || "No reason provided.";
 
     const embed = new EmbedBuilder()
       .setTitle("⚠️ User Warned")
-      .setColor("Yellow")
-      .addFields(
-        { name: "User", value: `${user.user.tag}`, inline: true },
-        { name: "Staff", value: `${message.author.tag}`, inline: true },
-        { name: "Reason", value: reason }
-      )
-      .setTimestamp();
-
-    await user.send(`⚠️ You were warned in ${message.guild.name}\nReason: ${reason}`).catch(() => {});
-    logChannel.send({ embeds: [embed] });
-    message.reply("User warned successfully.");
-  }
-
-  // MUTE (Timeout 10 minutes default)
-  if (command === "!mute") {
-    const user = message.mentions.members.first();
-    if (!user) return message.reply("Mention a user to mute.");
-
-    const reason = args.join(" ") || "No reason provided.";
-
-    await user.timeout(10 * 60 * 1000, reason);
-
-    const embed = new EmbedBuilder()
-      .setTitle("🔇 User Muted")
       .setColor("Orange")
       .addFields(
-        { name: "User", value: `${user.user.tag}`, inline: true },
-        { name: "Staff", value: `${message.author.tag}`, inline: true },
-        { name: "Duration", value: "10 minutes", inline: true },
+        { name: "User", value: `${member.user.tag}` },
+        { name: "Moderator", value: `${message.author.tag}` },
         { name: "Reason", value: reason }
       )
       .setTimestamp();
 
-    await user.send(`🔇 You were muted in ${message.guild.name}\nReason: ${reason}`).catch(() => {});
-    logChannel.send({ embeds: [embed] });
-    message.reply("User muted for 10 minutes.");
+    if (logChannel) logChannel.send({ embeds: [embed] });
+
+    return message.reply(`${member.user.tag} has been warned.`);
   }
 
-  // BAN
+  // ================= BAN =================
   if (command === "!ban") {
-    const user = message.mentions.members.first();
-    if (!user) return message.reply("Mention a user to ban.");
+    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers))
+      return message.reply("You don't have permission to ban.");
+
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("Mention a user to ban.");
 
     const reason = args.join(" ") || "No reason provided.";
 
-    await user.ban({ reason });
+    await member.ban({ reason });
 
     const embed = new EmbedBuilder()
       .setTitle("🔨 User Banned")
       .setColor("Red")
       .addFields(
-        { name: "User", value: `${user.user.tag}`, inline: true },
-        { name: "Staff", value: `${message.author.tag}`, inline: true },
+        { name: "User", value: `${member.user.tag}` },
+        { name: "Moderator", value: `${message.author.tag}` },
         { name: "Reason", value: reason }
       )
       .setTimestamp();
 
-    logChannel.send({ embeds: [embed] });
-    message.reply("User banned successfully.");
+    if (logChannel) logChannel.send({ embeds: [embed] });
+
+    return message.reply(`${member.user.tag} has been banned.`);
+  }
+
+  // ================= MUTE (TIMEOUT) =================
+  if (command === "!mute") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
+      return message.reply("You don't have permission to mute.");
+
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("Mention a user to mute.");
+
+    const duration = 10 * 60 * 1000; // 10 minutes
+    const reason = args.slice(1).join(" ") || "No reason provided.";
+
+    await member.timeout(duration, reason);
+
+    const embed = new EmbedBuilder()
+      .setTitle("🔇 User Muted")
+      .setColor("Blue")
+      .addFields(
+        { name: "User", value: `${member.user.tag}` },
+        { name: "Moderator", value: `${message.author.tag}` },
+        { name: "Duration", value: "10 minutes" },
+        { name: "Reason", value: reason }
+      )
+      .setTimestamp();
+
+    if (logChannel) logChannel.send({ embeds: [embed] });
+
+    return message.reply(`${member.user.tag} has been muted for 10 minutes.`);
   }
 });
 
 client.login(process.env.TOKEN);
-
