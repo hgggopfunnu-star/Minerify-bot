@@ -1,5 +1,9 @@
 const { Client, GatewayIntentBits, PermissionsBitField, EmbedBuilder } = require('discord.js');
 const { setupLinking } = require("./linking");
+const express = require("express");
+
+const app = express();
+app.use(express.json());
 
 const client = new Client({
   intents: [
@@ -95,7 +99,7 @@ client.on('messageCreate', async message => {
     return message.reply(`${member.user.tag} has been banned.`);
   }
 
-  // ================= MUTE (TIMEOUT) =================
+  // ================= MUTE =================
   if (command === "!mute") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers))
       return message.reply("You don't have permission to mute.");
@@ -123,6 +127,24 @@ client.on('messageCreate', async message => {
 
     return message.reply(`${member.user.tag} has been muted for 10 minutes.`);
   }
+});
+
+// ================= API FOR MINECRAFT =================
+app.post("/generate-code", (req, res) => {
+  const { username } = req.body;
+
+  if (!username) {
+    return res.status(400).json({ error: "Username required" });
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  res.json({ code });
+});
+
+// Railway auto port
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`API running on port ${PORT}`);
 });
 
 client.login(process.env.TOKEN);
