@@ -5,7 +5,7 @@ module.exports = {
     async execute(interaction, { balances }) {
         const user = getUser(interaction.user.id, balances);
         return interaction.reply(`💰 You have **${user.coins} Rift Coins**`);
-    },
+    }
 
     async executePrefix(message, args, { balances }) {
         const user = getUser(message.author.id, balances);
