@@ -1,8 +1,8 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 
 module.exports = {
     name: "embed",
-    description: "Create a custom embed message",
+    description: "Create a custom embed message (Admin Only)",
     options: [
         {
             name: "title",
@@ -25,6 +25,15 @@ module.exports = {
     ],
 
     async execute(interaction) {
+
+        // 🔒 Admin check
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({
+                content: "❌ You must be an Administrator to use this command.",
+                ephemeral: true
+            });
+        }
+
         const title = interaction.options.getString("title");
         const description = interaction.options.getString("description");
         const color = interaction.options.getString("color") || "#00FFFF";
