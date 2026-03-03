@@ -4,8 +4,9 @@ const cooldowns = new Map();
 
 module.exports = {
     name: "daily",
+    description: "Claim your daily Rift Coins",
 
-    async execute(interaction, balances) {
+    async execute(interaction, { balances }) {
         const userId = interaction.user.id;
         const now = Date.now();
         const cooldownTime = 24 * 60 * 60 * 1000;
