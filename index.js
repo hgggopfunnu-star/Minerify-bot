@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
-const { MongoClient } = require("mongodb");
 const {
     Client,
     GatewayIntentBits,
@@ -18,9 +17,8 @@ const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-const MONGO_URI = process.env.MONGO_URI;
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID || !MONGO_URI) {
+if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
     console.error("Missing required environment variables.");
     process.exit(1);
 }
@@ -57,25 +55,6 @@ const SERVER_IP = "play.minerift.fun";
 const SERVER_STORE = "store.minerift.fun";
 
 /* ===========================
-   DATABASE
-=========================== */
-
-let db;
-
-async function connectMongo() {
-    try {
-        const mongoClient = new MongoClient(MONGO_URI);
-        await mongoClient.connect();
-        db = mongoClient.db("minerift");
-
-        console.log("✅ Connected to MongoDB");
-    } catch (err) {
-        console.error("❌ MongoDB connection failed:", err);
-        process.exit(1);
-    }
-}
-
-/* ===========================
    LOAD FEATURES
 =========================== */
 
@@ -109,19 +88,14 @@ if (fs.existsSync(featuresPath)) {
 =========================== */
 
 client.once("ready", async () => {
-    await connectMongo();
-
     try {
         const rest = new REST({ version: "10" }).setToken(TOKEN);
-
-        console.log("Registering slash commands...");
 
         await rest.put(
             Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
             { body: commands }
         );
 
-        console.log("Slash commands registered.");
         console.log(`🤖 Logged in as ${client.user.tag}`);
     } catch (err) {
         console.error("Slash registration failed:", err);
@@ -140,7 +114,6 @@ client.on("interactionCreate", async interaction => {
 
     try {
         await feature.execute(interaction, {
-            db,
             SERVER_IP,
             SERVER_STORE
         });
@@ -174,7 +147,6 @@ client.on("messageCreate", async message => {
 
     try {
         await feature.executePrefix(message, args, {
-            db,
             SERVER_IP,
             SERVER_STORE
         });
