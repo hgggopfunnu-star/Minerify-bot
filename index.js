@@ -31,13 +31,18 @@ if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
 =========================== */
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
 /* ===========================
-   MINERIFT CONFIG
+   CONFIG
 =========================== */
 
+const PREFIX = "rift";
 const SERVER_IP = "play.minerift.fun";
 const SERVER_STORE = "store.minerift.fun";
 
@@ -85,20 +90,23 @@ if (fs.existsSync(featuresPath)) {
     for (const file of featureFiles) {
         const feature = require(`./features/${file}`);
 
-        if (!feature.name || !feature.description || !feature.execute) continue;
+        if (!feature.name || !feature.description) continue;
 
         features.set(feature.name, feature);
 
-        commands.push({
-            name: feature.name,
-            description: feature.description,
-            options: feature.options || []
-        });
+        // Slash command registration
+        if (feature.execute) {
+            commands.push({
+                name: feature.name,
+                description: feature.description,
+                options: feature.options || []
+            });
+        }
     }
 }
 
 /* ===========================
-   READY + REGISTER COMMANDS
+   READY + REGISTER SLASH
 =========================== */
 
 client.once("ready", async () => {
@@ -120,14 +128,14 @@ client.once("ready", async () => {
 });
 
 /* ===========================
-   INTERACTIONS
+   SLASH INTERACTIONS
 =========================== */
 
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     const feature = features.get(interaction.commandName);
-    if (!feature) return;
+    if (!feature || !feature.execute) return;
 
     try {
         await feature.execute(interaction, {
@@ -139,13 +147,42 @@ client.on("interactionCreate", async interaction => {
         });
     } catch (error) {
         console.error(error);
-
         if (!interaction.replied) {
             await interaction.reply({
                 content: "There was an error executing this command.",
                 ephemeral: true
             });
         }
+    }
+});
+
+/* ===========================
+   PREFIX COMMAND SYSTEM
+=========================== */
+
+client.on("messageCreate", async message => {
+    if (message.author.bot) return;
+
+    if (!message.content.toLowerCase().startsWith(PREFIX)) return;
+
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const commandName = args.shift()?.toLowerCase();
+    if (!commandName) return;
+
+    const feature = features.get(commandName);
+    if (!feature || !feature.executePrefix) return;
+
+    try {
+        await feature.executePrefix(message, args, {
+            pendingLinks,
+            linkedAccounts,
+            balances,
+            SERVER_IP,
+            SERVER_STORE
+        });
+    } catch (err) {
+        console.error(err);
+        message.reply("There was an error executing that command.");
     }
 });
 
