@@ -2,15 +2,13 @@ require("dotenv").config();
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { MongoClient } = require("mongodb");
 const {
     Client,
     GatewayIntentBits,
     REST,
     Routes
 } = require("discord.js");
-
-const app = express();
-app.use(express.json());
 
 /* ===========================
    ENVIRONMENT VARIABLES
@@ -20,11 +18,23 @@ const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
+const MONGO_URI = process.env.MONGO_URI;
 
-if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
-    console.error("Missing environment variables.");
+if (!TOKEN || !CLIENT_ID || !GUILD_ID || !MONGO_URI) {
+    console.error("Missing required environment variables.");
     process.exit(1);
 }
+
+/* ===========================
+   EXPRESS APP
+=========================== */
+
+const app = express();
+app.use(express.json());
+
+app.get("/", (req, res) => {
+    res.send("⚡ Minerift API Online ⚡");
+});
 
 /* ===========================
    DISCORD CLIENT
@@ -42,38 +52,28 @@ const client = new Client({
    CONFIG
 =========================== */
 
-const PREFIX = "rift";
+const PREFIX = "rift ";
 const SERVER_IP = "play.minerift.fun";
 const SERVER_STORE = "store.minerift.fun";
 
 /* ===========================
-   MEMORY STORAGE
+   DATABASE
 =========================== */
 
-const pendingLinks = new Map();
-const linkedAccounts = new Map();
-const balances = new Map();
+let db;
 
-/* ===========================
-   EXPRESS API
-=========================== */
+async function connectMongo() {
+    try {
+        const mongoClient = new MongoClient(MONGO_URI);
+        await mongoClient.connect();
+        db = mongoClient.db("minerift");
 
-app.get("/", (req, res) => {
-    res.send("⚡ Minerift API Online ⚡");
-});
-
-app.post("/generate-code", (req, res) => {
-    const { username } = req.body;
-    if (!username) {
-        return res.status(400).json({ error: "Username required" });
+        console.log("✅ Connected to MongoDB");
+    } catch (err) {
+        console.error("❌ MongoDB connection failed:", err);
+        process.exit(1);
     }
-
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    pendingLinks.set(code, username);
-
-    console.log(`Generated code ${code} for ${username}`);
-    res.json({ code });
-});
+}
 
 /* ===========================
    LOAD FEATURES
@@ -85,16 +85,15 @@ const commands = [];
 const featuresPath = path.join(__dirname, "features");
 
 if (fs.existsSync(featuresPath)) {
-    const featureFiles = fs.readdirSync(featuresPath).filter(file => file.endsWith(".js"));
+    const files = fs.readdirSync(featuresPath).filter(file => file.endsWith(".js"));
 
-    for (const file of featureFiles) {
+    for (const file of files) {
         const feature = require(`./features/${file}`);
 
         if (!feature.name || !feature.description) continue;
 
         features.set(feature.name, feature);
 
-        // Slash command registration
         if (feature.execute) {
             commands.push({
                 name: feature.name,
@@ -106,10 +105,12 @@ if (fs.existsSync(featuresPath)) {
 }
 
 /* ===========================
-   READY + REGISTER SLASH
+   READY EVENT
 =========================== */
 
 client.once("ready", async () => {
+    await connectMongo();
+
     try {
         const rest = new REST({ version: "10" }).setToken(TOKEN);
 
@@ -123,12 +124,12 @@ client.once("ready", async () => {
         console.log("Slash commands registered.");
         console.log(`🤖 Logged in as ${client.user.tag}`);
     } catch (err) {
-        console.error(err);
+        console.error("Slash registration failed:", err);
     }
 });
 
 /* ===========================
-   SLASH INTERACTIONS
+   SLASH COMMAND HANDLER
 =========================== */
 
 client.on("interactionCreate", async interaction => {
@@ -139,14 +140,13 @@ client.on("interactionCreate", async interaction => {
 
     try {
         await feature.execute(interaction, {
-            pendingLinks,
-            linkedAccounts,
-            balances,
+            db,
             SERVER_IP,
             SERVER_STORE
         });
-    } catch (error) {
-        console.error(error);
+    } catch (err) {
+        console.error(err);
+
         if (!interaction.replied) {
             await interaction.reply({
                 content: "There was an error executing this command.",
@@ -157,7 +157,7 @@ client.on("interactionCreate", async interaction => {
 });
 
 /* ===========================
-   PREFIX COMMAND SYSTEM
+   PREFIX COMMAND HANDLER
 =========================== */
 
 client.on("messageCreate", async message => {
@@ -174,9 +174,7 @@ client.on("messageCreate", async message => {
 
     try {
         await feature.executePrefix(message, args, {
-            pendingLinks,
-            linkedAccounts,
-            balances,
+            db,
             SERVER_IP,
             SERVER_STORE
         });
