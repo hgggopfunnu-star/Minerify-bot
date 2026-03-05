@@ -31,7 +31,7 @@ const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-    res.send("⚡ Minerift API Online ⚡");
+    res.send("⚡ ForxenMC API Online ⚡");
 });
 
 /* ===========================
@@ -50,9 +50,8 @@ const client = new Client({
    CONFIG
 =========================== */
 
-const PREFIX = "rift ";
-const SERVER_IP = "play.minerift.fun";
-const SERVER_STORE = "store.minerift.fun";
+const PREFIX = "frox ";
+const SERVER_IP = "pro.blockhost.cloud:25568";
 
 /* ===========================
    LOAD FEATURES
@@ -114,8 +113,7 @@ client.on("interactionCreate", async interaction => {
 
     try {
         await feature.execute(interaction, {
-            SERVER_IP,
-            SERVER_STORE
+            SERVER_IP
         });
     } catch (err) {
         console.error(err);
@@ -147,8 +145,7 @@ client.on("messageCreate", async message => {
 
     try {
         await feature.executePrefix(message, args, {
-            SERVER_IP,
-            SERVER_STORE
+            SERVER_IP
         });
     } catch (err) {
         console.error(err);
